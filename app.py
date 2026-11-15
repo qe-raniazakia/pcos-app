@@ -58,4 +58,35 @@ st.markdown("""
 def load_assets():
     try:
         model = joblib.load('model_rf.joblib')
-        with open('fitur.json', 'r') as f
+        with open('fitur.json', 'r') as f:
+            fitur = json.load(f)
+        with open('median_fitur.json', 'r') as f:
+            median_fitur = json.load(f)
+        return model, fitur, median_fitur
+    except Exception as e:
+        return None, None, None
+
+model, fitur, median_fitur = load_assets()
+
+# Header Utama Sesuai Permintaan
+st.markdown("""
+# Sistem Deteksi Dini Polycystic Ovarian Syndrome (PCOS)
+<p style='font-size: 1.1rem; font-style: italic; color: #555555; margin-top: -8px; margin-bottom: 20px;'>
+Sistem skrining awal berbasis Machine Learning (Random Forest) untuk mendeteksi risiko PCOS.
+</p>
+""", unsafe_allow_html=True)
+
+# Kotak Peringatan (Warning)
+st.markdown("""
+<div class="warning-box">
+⚠️ <b>Perhatian:</b> Sistem ini hanya alat bantu skrining awal dan bukan pengganti diagnosis dokter. Konsultasikan lebih lanjut dengan dokter spesialis.
+</div>
+""", unsafe_allow_html=True)
+
+if model is None:
+    st.error("Gagal memuat file model atau konfigurasi fitur. Pastikan file `.joblib` dan `.json` sudah berada di direktori yang benar.")
+else:
+    # Form Input Pengguna
+    st.markdown("### Masukkan Data Klinis & Gejala")
+    
+    col1, col2 = st.
