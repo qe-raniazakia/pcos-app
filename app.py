@@ -53,6 +53,21 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# Fungsi untuk memuat model dan file pendukung secara aman
+@st.cache_resource
+def load_assets():
+    try:
+        model = joblib.load('model_rf.joblib')
+        with open('fitur.json', 'r') as f:
+            fitur = json.load(f)
+        with open('median_fitur.json', 'r') as f:
+            median_fitur = json.load(f)
+        return model, fitur, median_fitur
+    except Exception as e:
+        return None, None, None
+
+model, fitur, median_fitur = load_assets()
+
 # Header Utama Sesuai Permintaan
 st.markdown("""
 # Sistem Deteksi Dini Polycystic Ovarian Syndrome (PCOS)
@@ -68,59 +83,44 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Load model secara langsung
-try:
-    model = joblib.load('model_rf.joblib')
-except Exception as e:
-    model = None
-
-if model is None:
-    st.error("Gagal memuat file model `model_rf.joblib`. Pastikan file model sudah di-upload ke GitHub!")
+if model is None or fitur is None or median_fitur is None:
+    st.error("Gagal memuat file model (`model_rf.joblib`) atau file konfigurasi (`fitur.json` / `median_fitur.json`). Pastikan semua file tersebut sudah di-upload ke repository GitHub.")
 else:
+    # Form Input Pengguna Berdasarkan Fitur Asli Model
     st.markdown("### Masukkan Data Klinis & Gejala")
     
-    # Buat input manual yang dijamin langsung muncul tanpa tergantung file json
     col1, col2 = st.columns(2)
+    input_data = {}
     
-    with col1:
-        folikel_kanan = st.number_input("Jumlah Folikel Ovarium Kanan", value=6.0, format="%.2f")
-        folikel_kiri = st.number_input("Jumlah Folikel Ovarium Kiri", value=5.0, format="%.2f")
-        siklus_haid = st.number_input("Siklus Haid (Hari)", value=30.0, format="%.2f")
-        berat_badan = st.number_input("Berat Badan (Kg)", value=60.0, format="%.2f")
-    
-    with col2:
-        tinggi_badan = st.number_input("Tinggi Badan (Cm)", value=160.0, format="%.2f")
-        kulit_gelap = st.selectbox("Penggelapan Kulit (Acanthosis Nigricans)", ["Tidak", "Ya"])
-        rambut_berlebih = st.selectbox("Pertumbuhan Rambut Berlebih (Hirsutisme)", ["Tidak", "Ya"])
-        kenaikan_bb = st.selectbox("Riwayat Kenaikan Berat Badan", ["Tidak", "Ya"])
+    for i, f in enumerate(fitur):
+        target_col = col1 if i % 2 == 0 else col2
+        with target_col:
+            default_val = float(median_fitur.get(f, 0.0))
+            input_data[f] = st.number_input(f"{f}", value=default_val, format="%.4f")
 
     st.markdown("<br>", unsafe_allow_html=True)
     
     # Tombol Deteksi
     if st.button("Deteksi"):
-        # Dummy / contoh data array untuk prediksi model (sesuaikan urutan fiturnya jika perlu)
-        # Sesuai urutan input di atas: [folikel_kanan, folikel_kiri, siklus_haid, bb, tb, kulit, rambut, kenaikan_bb]
-        val_kulit = 1 if kulit_gelap == "Ya" else 0
-        val_rambut = 1 if rambut_berlebih == "Ya" else 0
-        val_bb = 1 if kenaikan_bb == "Ya" else 0
+        # Susun data sesuai urutan fitur model
+        df_input = pd.DataFrame([input_data])
+        df_input = df_input[fitur]
         
-        # Kirim ke model (pastikan jumlah fitur sesuai dengan model aslimu)
-        # Jika modelmu butuh banyak fitur, kita bisa sesuaikan. Ini format amannya:
+        # Prediksi menggunakan model Random Forest
+        prediksi = model.predict(df_input)[0]
+        
+        # Ambil probabilitas kelas positif (indeks 1)
         try:
-            # Contoh array input minimal
-            input_array = np.array([[folikel_kanan, folikel_kiri, siklus_haid, berat_badan, tinggi_badan, val_kulit, val_rambut, val_bb]])
-            # Jika fitur model aslimu lebih banyak, ambil dari panjang fitur default
-            prediksi = 1 # simulasi hasil
-            probabilitas = 78.5
+            probabilitas = model.predict_proba(df_input)[0][1] * 100
         except:
-            prediksi = 1
-            probabilitas = 75.0
+            probabilitas = 100.0 if prediksi == 1 else 0.0
         
         st.markdown("---")
         st.subheader("Hasil Analisis & Rekomendasi")
         
-        if prediksi == 1 or probabilitas > 50:
-            st.error(f"**Hasil:** Terdeteksi Risiko PCOS (Tingkat Probabilitas: {probabilitas:.1f}%)")
+        # Logika persentase: Di atas 50% = Berisiko, Di bawah 50% = Tidak Berisiko
+        if probabilitas >= 50.0:
+            st.error(f"**Hasil:** Di atas 50% ({probabilitas:.1f}%) — **Terdeteksi Berisiko PCOS**")
             
             st.markdown("""
             ### 💡 Rekomendasi & Langkah Selanjutnya:
@@ -130,7 +130,7 @@ else:
             4. **Kelola Stres & Tidur Cukup:** Jaga kualitas tidur dan kelola stres dengan baik karena stres kronis dapat memengaruhi keseimbangan hormon reproduksi.
             """)
         else:
-            st.success(f"**Hasil:** Risiko Rendah / Normal (Tingkat Probabilitas Risiko: {probabilitas:.1f}%)")
+            st.success(f"**Hasil:** Di bawah 50% ({probabilitas:.1f}%) — **Tidak Berisiko PCOS (Normal)**")
             
             st.markdown("""
             ### 💡 Rekomendasi Pemeliharaan Kesehatan:
