@@ -82,11 +82,3 @@ st.markdown("""
 ⚠️ <b>Perhatian:</b> Sistem ini hanya alat bantu skrining awal dan bukan pengganti diagnosis dokter. Konsultasikan lebih lanjut dengan dokter spesialis.
 </div>
 """, unsafe_allow_html=True)
-
-if model is None:
-    st.error("Gagal memuat file model atau konfigurasi fitur. Pastikan file `.joblib` dan `.json` sudah berada di direktori yang benar.")
-else:
-    # Form Input Pengguna
-    st.markdown("### Masukkan Data Klinis & Gejala")
-    
-    col1, col2 = st.
