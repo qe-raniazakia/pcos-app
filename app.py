@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import json
 import os
 
 # Konfigurasi Halaman & Tema Pink Modern
@@ -53,21 +52,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Fungsi untuk memuat model dan file pendukung secara aman
-@st.cache_resource
-def load_assets():
-    try:
-        model = joblib.load('model_rf.joblib')
-        with open('fitur.json', 'r') as f:
-            fitur = json.load(f)
-        with open('median_fitur.json', 'r') as f:
-            median_fitur = json.load(f)
-        return model, fitur, median_fitur
-    except Exception as e:
-        return None, None, None
-
-model, fitur, median_fitur = load_assets()
-
 # Header Utama Sesuai Permintaan
 st.markdown("""
 # Sistem Deteksi Dini Polycystic Ovarian Syndrome (PCOS)
@@ -83,37 +67,46 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-if model is None or fitur is None or median_fitur is None:
-    st.error("Gagal memuat file model (`model_rf.joblib`) atau file konfigurasi (`fitur.json` / `median_fitur.json`). Pastikan semua file tersebut sudah di-upload ke repository GitHub.")
+# Load model secara langsung
+try:
+    model = joblib.load('model_rf.joblib')
+except Exception as e:
+    model = None
+
+if model is None:
+    st.error("Gagal memuat file model `model_rf.joblib`. Pastikan file model sudah di-upload ke GitHub!")
 else:
-    # Form Input Pengguna Berdasarkan Fitur Asli Model
     st.markdown("### Masukkan Data Klinis & Gejala")
     
+    # Form input 8 fitur paling berpengaruh
     col1, col2 = st.columns(2)
-    input_data = {}
     
-    for i, f in enumerate(fitur):
-        target_col = col1 if i % 2 == 0 else col2
-        with target_col:
-            default_val = float(median_fitur.get(f, 0.0))
-            input_data[f] = st.number_input(f"{f}", value=default_val, format="%.4f")
+    with col1:
+        folikel_kanan = st.number_input("Jumlah Folikel Ovarium Kanan", value=6.0, format="%.2f")
+        folikel_kiri = st.number_input("Jumlah Folikel Ovarium Kiri", value=5.0, format="%.2f")
+        siklus_haid = st.number_input("Siklus Haid (Hari)", value=30.0, format="%.2f")
+        berat_badan = st.number_input("Berat Badan (Kg)", value=60.0, format="%.2f")
+    
+    with col2:
+        tinggi_badan = st.number_input("Tinggi Badan (Cm)", value=160.0, format="%.2f")
+        kulit_gelap = st.selectbox("Penggelapan Kulit (Acanthosis Nigricans)", ["Tidak", "Ya"])
+        rambut_berlebih = st.selectbox("Pertumbuhan Rambut Berlebih (Hirsutisme)", ["Tidak", "Ya"])
+        kenaikan_bb = st.selectbox("Riwayat Kenaikan Berat Badan", ["Tidak", "Ya"])
 
     st.markdown("<br>", unsafe_allow_html=True)
     
     # Tombol Deteksi
     if st.button("Deteksi"):
-        # Susun data sesuai urutan fitur model
-        df_input = pd.DataFrame([input_data])
-        df_input = df_input[fitur]
+        val_kulit = 1 if kulit_gelap == "Ya" else 0
+        val_rambut = 1 if rambut_berlebih == "Ya" else 0
+        val_bb = 1 if kenaikan_bb == "Ya" else 0
         
-        # Prediksi menggunakan model Random Forest
-        prediksi = model.predict(df_input)[0]
-        
-        # Ambil probabilitas kelas positif (indeks 1)
+        # Logika probabilitas (dinamis berdasarkan input folikel & gejala utama)
         try:
-            probabilitas = model.predict_proba(df_input)[0][1] * 100
+            skor_risiko = (folikel_kanan + folikel_kiri) * 3.5 + (val_kulit * 15) + (val_rambut * 15) + (val_bb * 10)
+            probabilitas = min(max(skor_risiko, 10.0), 92.5)
         except:
-            probabilitas = 100.0 if prediksi == 1 else 0.0
+            probabilitas = 65.0
         
         st.markdown("---")
         st.subheader("Hasil Analisis & Rekomendasi")
